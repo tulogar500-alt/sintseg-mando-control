@@ -1,0 +1,12 @@
+# Archivo de variables de entorno privadas
+.env
+
+# Archivos de dependencias de Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archivos de sistema operativo y temporales
+.DS_Store
+Thumbs.db
