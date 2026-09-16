@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SINTSEG — Dirección, Coordinación y Seguimiento (Mando y Control)</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f4f8',
+              100: '#d9e2ec',
+              200: '#bccadc',
+              300: '#9fb3c8',
+              400: '#829ab1',
+              500: '#627d98',
+              600: '#486581',
+              700: '#334e68',
+              800: '#243b53',
+              900: '#102a43',
+              950: '#0b1d30',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- React 18 & ReactDOM UMD -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+
+  <!-- Babel Standalone -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0b1d30;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334e68;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #486581;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased selection:bg-amber-500 selection:text-slate-950 min-h-screen">
+  <div id="root">
+    <div class="flex h-screen items-center justify-center bg-slate-950 text-slate-400 text-xs font-mono">
+      Cargando SINTSEG Mando y Control...
+    </div>
+  </div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    // --- FUNCIONES HELPERS DE FECHA DINÁMICA ---
+    const getTodayISO = () => new Date().toISOString().split('T')[0];
+    const addDaysISO = (baseDateStr, days) => {
+      const d = new Date(baseDateStr || new Date());
+      d.setDate(d.getDate() + days);
+      return d.toISOString().split('T')[0];
+    };
+    const formatFechaLegible = (isoStr) => {
+      if (!isoStr) return 'Sin fecha';
+      const parts = isoStr.split('-');
+      if (parts.length < 3) return isoStr;
+      const meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+      const mesIndex = parseInt(parts[1], 10) - 1;
+      return `${parts[2]} ${meses[mesIndex] || parts[1]} ${parts[0]}`;
+    };
+
+    const HOY = getTodayISO();
+
+    // --- DATOS SEMILLA ---
+    const INITIAL_EQUIPOS = [
+      { id: 'eq-1', nombre: 'Seguridad de la Información (SEGINFO)', liderId: 'usr-2', descripcion: 'Auditoría, cifrado y políticas de seguridad digital', color: 'blue' },
+      { id: 'eq-2', nombre: 'Protección de Datos (LOPD)', liderId: 'usr-3', descripcion: 'Cumplimiento normativo y privacidad de datos sensibles', color: 'emerald' },
+      { id: 'eq-3', nombre: 'Análisis de Riesgos y Amenazas', liderId: 'usr-4', descripcion: 'Evaluación contrainteligencia y gestión de vectores de ataque', color: 'amber' },
+      { id: 'eq-4', nombre: 'Respuesta a Incidentes (CERT)', liderId: 'usr-5', descripcion: 'Mitigación inmediata y análisis forense digital', color: 'rose' }
+    ];
+
+    const INITIAL_USUARIOS = [
+      { id: 'usr-1', nombre: 'Cnel. Alejandro Ramos', puesto: 'Director General SINTSEG', email: 'a.ramos@sintseg.gob.es', rol: 'JEFE', equipoId: 'eq-1', avatar: 'AR' },
+      { id: 'usr-2', nombre: 'Dra. Beatriz Méndez', puesto: 'Jefa de Equipo SEGINFO', email: 'b.mendez@sintseg.gob.es', rol: 'RESPONSABLE_EQUIPO', equipoId: 'eq-1', avatar: 'BM' },
+      { id: 'usr-3', nombre: 'Lic. Carlos Izquierdo', puesto: 'Coordinador LOPD', email: 'c.izquierdo@sintseg.gob.es', rol: 'RESPONSABLE_EQUIPO', equipoId: 'eq-2', avatar: 'CI' },
+      { id: 'usr-4', nombre: 'Cap. David Navarro', puesto: 'Jefe de Análisis de Riesgos', email: 'd.navarro@sintseg.gob.es', rol: 'RESPONSABLE_EQUIPO', equipoId: 'eq-3', avatar: 'DN' },
+      { id: 'usr-5', nombre: 'Ing. Elena Vega', puesto: 'Líder Operativa CERT', email: 'e.vega@sintseg.gob.es', rol: 'RESPONSABLE_EQUIPO', equipoId: 'eq-4', avatar: 'EV' },
+      { id: 'usr-6', nombre: 'Fernando Gómez', puesto: 'Analista de Sistemas SEGINFO', email: 'f.gomez@sintseg.gob.es', rol: 'USUARIO', equipoId: 'eq-1', avatar: 'FG' },
+      { id: 'usr-7', nombre: 'Gloria Sola', puesto: 'Auditora de Cifrado SEGINFO', email: 'g.sola@sintseg.gob.es', rol: 'USUARIO', equipoId: 'eq-1', avatar: 'GS' },
+      { id: 'usr-8', nombre: 'Héctor Prieto', puesto: 'Especialista Legal LOPD', email: 'h.prieto@sintseg.gob.es', rol: 'USUARIO', equipoId: 'eq-2', avatar: 'HP' },
+      { id: 'usr-9', nombre: 'Irene Beltrán', puesto: 'Analista de Inteligencia Riesgos', email: 'i.beltran@sintseg.gob.es', rol: 'USUARIO', equipoId: 'eq-3', avatar: 'IB' },
+      { id: 'usr-10', nombre: 'Javier Castillo', puesto: 'Investigador Forense CERT', email: 'j.castillo@sintseg.gob.es', rol: 'USUARIO', equipoId: 'eq-4', avatar: 'JC' },
+      { id: 'usr-11', nombre: 'Laura Medina', puesto: 'Técnico de Redes y Cripto', email: 'l.medina@sintseg.gob.es', rol: 'USUARIO', equipoId: 'eq-1', avatar: 'LM' },
+      { id: 'usr-12', nombre: 'Marcos Alonso', puesto: 'Analista de Vulnerabilidades CERT', email: 'm.alonso@sintseg.gob.es', rol: 'USUARIO', equipoId: 'eq-4', avatar: 'MA' }
+    ];
+
+    const INITIAL_ASUNTOS = [
+      {
+        id: 'asu-1',
+        codigo: 'EXP-2026-001',
+        titulo: 'Inspección General SEGINFO 2026',
+        descripcion: 'Auditoría integral de seguridad de la información e infraestructura digital acreditada.',
+        responsableId: 'usr-2',
+        equipoResponsableId: 'eq-1',
+        participantesIds: ['usr-6', 'usr-7', 'usr-11', 'usr-3'],
+        prioridad: 'Crítica',
+        estado: 'En curso',
+        progreso: 65,
+        fechaInicio: addDaysISO(HOY, -15),
+        fechaLimite: addDaysISO(HOY, 30),
+        hitosCount: 4,
+        reunionesCount: 3,
+        documentosIds: ['doc-1', 'doc-2', 'doc-3'],
+        historico: [
+          { fecha: `${addDaysISO(HOY, -15)} 09:00`, usuario: 'Cnel. Alejandro Ramos', accion: 'Apertura de expediente y designación de responsable principal.' },
+          { fecha: `${addDaysISO(HOY, -6)} 14:30`, usuario: 'Dra. Beatriz Méndez', accion: 'Incorporados 3 documentos iniciales de directiva de auditoría.' }
+        ]
+      },
+      {
+        id: 'asu-2',
+        codigo: 'EXP-2026-002',
+        titulo: 'Adecuación al Esquema Nacional de Seguridad (ENS)',
+        descripcion: 'Revisión y actualización de controles de seguridad de nivel alto según directiva dictada.',
+        responsableId: 'usr-3',
+        equipoResponsableId: 'eq-2',
+        participantesIds: ['usr-8', 'usr-2'],
+        prioridad: 'Alta',
+        estado: 'En curso',
+        progreso: 45,
+        fechaInicio: addDaysISO(HOY, -30),
+        fechaLimite: addDaysISO(HOY, 45),
+        hitosCount: 5,
+        reunionesCount: 2,
+        documentosIds: ['doc-4', 'doc-5'],
+        historico: [{ fecha: `${addDaysISO(HOY, -30)} 10:00`, usuario: 'Cnel. Alejandro Ramos', accion: 'Expediente creado.' }]
+      },
+      {
+        id: 'asu-3',
+        codigo: 'EXP-2026-003',
+        titulo: 'Plan de Contingencia ante Incidentes Críticos',
+        descripcion: 'Protocolos de continuidad operativa y recuperación ante desastres informáticos.',
+        responsableId: 'usr-5',
+        equipoResponsableId: 'eq-4',
+        participantesIds: ['usr-10', 'usr-12', 'usr-4'],
+        prioridad: 'Crítica',
+        estado: 'Bloqueado',
+        progreso: 30,
+        fechaInicio: addDaysISO(HOY, -10),
+        fechaLimite: addDaysISO(HOY, 12),
+        hitosCount: 3,
+        reunionesCount: 4,
+        documentosIds: ['doc-6', 'doc-7'],
+        historico: [{ fecha: `${addDaysISO(HOY, -2)} 11:20`, usuario: 'Ing. Elena Vega', accion: 'Comunicado bloqueo por falta de hardware de respaldo.' }]
+      },
+      {
+        id: 'asu-4',
+        codigo: 'EXP-2026-004',
+        titulo: 'Evaluación de Vectores de Amenaza Externa 2026',
+        descripcion: 'Informe trimestral de vulnerabilidades y superficie de exposición externa.',
+        responsableId: 'usr-4',
+        equipoResponsableId: 'eq-3',
+        participantesIds: ['usr-9', 'usr-12'],
+        prioridad: 'Media',
+        estado: 'En curso',
+        progreso: 80,
+        fechaInicio: addDaysISO(HOY, -14),
+        fechaLimite: addDaysISO(HOY, 9),
+        hitosCount: 2,
+        reunionesCount: 1,
+        documentosIds: ['doc-8'],
+        historico: []
+      },
+      {
+        id: 'asu-5',
+        codigo: 'EXP-2026-005',
+        titulo: 'Renovación de Licencias y Módulos Criptográficos',
+        descripcion: 'Proceso de licitación y validación técnica de HSMs y tarjetas criptográficas.',
+        responsableId: 'usr-2',
+        equipoResponsableId: 'eq-1',
+        participantesIds: ['usr-7', 'usr-11'],
+        prioridad: 'Media',
+        estado: 'En revisión',
+        progreso: 90,
+        fechaInicio: addDaysISO(HOY, -40),
+        fechaLimite: addDaysISO(HOY, 4),
+        hitosCount: 3,
+        reunionesCount: 2,
+        documentosIds: ['doc-9'],
+        historico: []
+      },
+      {
+        id: 'asu-6',
+        codigo: 'EXP-2026-006',
+        titulo: 'Formación y Concienciación en Ciberseguridad',
+        descripcion: 'Jornadas de capacitación obligatoria para todo el personal interno SINTSEG.',
+        responsableId: 'usr-3',
+        equipoResponsableId: 'eq-2',
+        participantesIds: ['usr-8', 'usr-9'],
+        prioridad: 'Baja',
+        estado: 'Pendiente',
+        progreso: 10,
+        fechaInicio: addDaysISO(HOY, 15),
+        fechaLimite: addDaysISO(HOY, 75),
+        hitosCount: 2,
+        reunionesCount: 0,
+        documentosIds: [],
+        historico: []
+      },
+      {
+        id: 'asu-7',
+        codigo: 'EXP-2026-007',
+        titulo: 'Auditoría Forense de Accesos Privilegiados',
+        descripcion: 'Análisis de registros PAM y trazabilidad de cuentas con permisos de administración.',
+        responsableId: 'usr-5',
+        equipoResponsableId: 'eq-4',
+        participantesIds: ['usr-10', 'usr-6'],
+        prioridad: 'Alta',
+        estado: 'En curso',
+        progreso: 50,
+        fechaInicio: addDaysISO(HOY, -8),
+        fechaLimite: addDaysISO(HOY, 20),
+        hitosCount: 3,
+        reunionesCount: 1,
+        documentosIds: ['doc-10', 'doc-11'],
+        historico: []
+      },
+      {
+        id: 'asu-8',
+        codigo: 'EXP-2026-008',
+        titulo: 'Despliegue del Sistema Local IA para Mando',
+        descripcion: 'Instalación y pruebas de validación de modelos Ollama en infraestructura aislada.',
+        responsableId: 'usr-1',
+        equipoResponsableId: 'eq-1',
+        participantesIds: ['usr-2', 'usr-4', 'usr-5'],
+        prioridad: 'Crítica',
+        estado: 'En curso',
+        progreso: 40,
+        fechaInicio: addDaysISO(HOY, -4),
+        fechaLimite: addDaysISO(HOY, 35),
+        hitosCount: 4,
+        reunionesCount: 2,
+        documentosIds: ['doc-12'],
+        historico: []
+      }
+    ];
+
+    const INITIAL_TAREAS = [
+      {
+        id: 'tar-101',
+        codigo: 'TAR-101',
+        asuntoId: 'asu-1',
+        titulo: 'Recopilar inventario acreditado de servidores de alta seguridad',
+        descripcion: 'Extraer y verificar la matriz de componentes y direcciones asignadas.',
+        fechaCreacion: addDaysISO(HOY, -15),
+        fechaInicio: addDaysISO(HOY, -14),
+        fechaLimite: addDaysISO(HOY, 1),
+        prioridad: 'Crítica',
+        estado: 'En curso',
+        progreso: 70,
+        modalidad: 'Coordinada entre personas',
+        responsablePrincipalId: 'usr-6',
+        participantesIds: ['usr-7', 'usr-11'],
+        equiposImplicadosIds: ['eq-1'],
+        equipoApoyoId: 'eq-4',
+        autoridadAprobacion: 'Cnel. Alejandro Ramos',
+        subtareas: [
+          { id: 'sub-1', titulo: 'Verificar servidores en Rack A3', completada: true },
+          { id: 'sub-2', titulo: 'Validar firmas digitales del firmware', completada: true },
+          { id: 'sub-3', titulo: 'Generar reporte de divergencias', completada: false }
+        ],
+        dependenciasIds: [],
+        documentosAsociados: ['doc-1', 'doc-2'],
+        observaciones: 'Falta confirmar datos de la granja de virtualización secundaria.',
+        etiquetas: ['Inventario', 'SEGINFO', 'Auditoría'],
+        historico: [
+          { fecha: `${addDaysISO(HOY, -14)} 10:00`, usuario: 'Dra. Beatriz Méndez', detalle: 'Tarea asignada a Fernando Gómez.' },
+          { fecha: `${addDaysISO(HOY, -2)} 16:00`, usuario: 'Fernando Gómez', detalle: 'Progreso actualizado al 70%.' }
+        ]
+      },
+      {
+        id: 'tar-102',
+        codigo: 'TAR-102',
+        asuntoId: 'asu-1',
+        titulo: 'Redactar borrador de informe de cumplimiento de directiva 4/2026',
+        descripcion: 'Sintetizar hallazgos preliminares y recomendaciones de mitigación.',
+        fechaCreacion: addDaysISO(HOY, -11),
+        fechaInicio: addDaysISO(HOY, -10),
+        fechaLimite: addDaysISO(HOY, 6),
+        prioridad: 'Alta',
+        estado: 'En curso',
+        progreso: 40,
+        modalidad: 'Individual',
+        responsablePrincipalId: 'usr-2',
+        participantesIds: ['usr-6'],
+        equiposImplicadosIds: ['eq-1'],
+        autoridadAprobacion: 'Cnel. Alejandro Ramos',
+        subtareas: [
+          { id: 'sub-4', titulo: 'Estructurar apartados 1 al 4', completada: true },
+          { id: 'sub-5', titulo: 'Revisar anexos técnicos', completada: false }
+        ],
+        dependenciasIds: ['tar-101'],
+        documentosAsociados: ['doc-3'],
+        observaciones: 'Requiere la finalización de TAR-101.',
+        etiquetas: ['Informe', 'Normativa'],
+        historico: []
+      },
+      {
+        id: 'tar-103',
+        codigo: 'TAR-103',
+        asuntoId: 'asu-1',
+        titulo: 'Auditar política de contraseñas y certificados TLS',
+        descripcion: 'Comprobar expiración de certificados y fortaleza de llaves RSA/ECC.',
+        fechaCreacion: addDaysISO(HOY, -8),
+        fechaInicio: addDaysISO(HOY, -7),
+        fechaLimite: addDaysISO(HOY, -1),
+        prioridad: 'Crítica',
+        estado: 'En curso',
+        progreso: 50,
+        modalidad: 'Individual',
+        responsablePrincipalId: 'usr-7',
+        participantesIds: [],
+        equiposImplicadosIds: ['eq-1'],
+        autoridadAprobacion: 'Dra. Beatriz Méndez',
+        subtareas: [],
+        dependenciasIds: [],
+        documentosAsociados: [],
+        observaciones: 'Retrasada por interrupción urgente en auditoría de red.',
+        bloqueos: 'Sobrecarga de trabajo en auditoría operativa.',
+        etiquetas: ['TLS', 'Cripto', 'Retraso'],
+        historico: [{ fecha: `${addDaysISO(HOY, -1)} 18:00`, usuario: 'Sistema', detalle: 'ALERTA: Tarea fuera de plazo.' }]
+      },
+      {
+        id: 'tar-301',
+        codigo: 'TAR-301',
+        asuntoId: 'asu-3',
+        titulo: 'Prueba de conmutación a Centro de Proceso de Datos secundario',
+        descripcion: 'Simulacro de caída total del centro primario y medición de RTO/RPO.',
+        fechaCreacion: addDaysISO(HOY, -10),
+        fechaInicio: addDaysISO(HOY, -9),
+        fechaLimite: addDaysISO(HOY, 4),
+        prioridad: 'Crítica',
+        estado: 'Bloqueada',
+        progreso: 20,
+        modalidad: 'Coordinada entre equipos',
+        responsablePrincipalId: 'usr-5',
+        participantesIds: ['usr-10', 'usr-12', 'usr-4'],
+        equiposImplicadosIds: ['eq-4', 'eq-3'],
+        autoridadAprobacion: 'Cnel. Alejandro Ramos',
+        subtareas: [],
+        dependenciasIds: [],
+        documentosAsociados: ['doc-6'],
+        observaciones: 'BLOQUEADA: El switch SAN del centro secundario no responde.',
+        bloqueos: 'Fallo de hardware en almacenamiento SAN del CPD-B.',
+        etiquetas: ['Simulacro', 'CERT', 'Bloqueo'],
+        historico: [{ fecha: `${addDaysISO(HOY, -2)} 11:20`, usuario: 'Ing. Elena Vega', detalle: 'Estado cambiado a Bloqueada por avería de hardware.' }]
+      },
+      {
+        id: 'tar-401',
+        codigo: 'TAR-401',
+        asuntoId: 'asu-4',
+        titulo: 'Análisis de escaneo perimetral de direcciones IP públicas',
+        descripcion: 'Filtrar falsos positivos e identificar puertos abiertos no autorizados.',
+        fechaCreacion: addDaysISO(HOY, -4),
+        fechaInicio: addDaysISO(HOY, -3),
+        fechaLimite: addDaysISO(HOY, 8),
+        prioridad: 'Crítica',
+        estado: 'Pendiente',
+        progreso: 0,
+        modalidad: 'Individual',
+        responsablePrincipalId: '',
+        participantesIds: ['usr-9'],
+        equiposImplicadosIds: ['eq-3'],
+        autoridadAprobacion: 'Cap. David Navarro',
+        subtareas: [],
+        dependenciasIds: [],
+        documentosAsociados: ['doc-8'],
+        observaciones: 'Requiere asignación urgente por el Jefe.',
+        etiquetas: ['Escaneo', 'Perímetro', 'SinResponsable'],
+        historico: []
+      }
+    ];
+
+    const INITIAL_DOCUMENTOS = [
+      {
+        id: 'doc-1',
+        nombre: 'Directiva_Auditoria_SEGINFO_2026.pdf',
+        tipo: 'PDF',
+        tamaño: '2.4 MB',
+        fechaCarga: addDaysISO(HOY, -15),
+        asuntoId: 'asu-1',
+        tareaIds: ['tar-101', 'tar-102'],
+        remitente: 'Dirección General de Seguridad',
+        destinatario: 'Dra. Beatriz Méndez',
+        etiquetas: ['Normativa', 'SEGINFO', 'Oficial'],
+        resumenIA: 'Establece los requisitos obligatorios de revisión de activos de red.',
+        accionesExtraidas: [{ accion: 'Recopilar inventario acreditado de servidores', fechaLimite: addDaysISO(HOY, 1), prioridad: 'Crítica', responsableSugerido: 'Fernando Gómez' }]
+      }
+    ];
+
+    const INITIAL_EVENTOS = [
+      { id: 'evt-1', titulo: 'Vencimiento: Recopilar inventario acreditado', tipo: 'Plazo', fecha: addDaysISO(HOY, 1), hora: '14:00', asuntoId: 'asu-1', tareaId: 'tar-101', prioridad: 'Crítica' },
+      { id: 'evt-2', titulo: 'Reunión de Coordinación de Mando SINTSEG', tipo: 'Reunión', fecha: addDaysISO(HOY, 2), hora: '09:30', asuntoId: 'asu-1', prioridad: 'Alta' }
+    ];
+
+    const INITIAL_ALERTAS = [
+      {
+        id: 'alt-1',
+        tipo: 'VENCIDA',
+        titulo: 'Tarea fuera de plazo',
+        mensaje: 'La tarea TAR-103 "Auditar política de contraseñas y certificados TLS" venció ayer.',
+        fecha: `${HOY} 08:00`,
+        nivel: 'Crítica',
+        leida: false,
+        referenciaId: 'tar-103'
+      },
+      {
+        id: 'alt-2',
+        tipo: 'SIN_RESPONSABLE',
+        titulo: 'Tarea crítica sin responsable asignado',
+        mensaje: 'La tarea TAR-401 "Análisis de escaneo perimetral" no tiene responsable principal designado.',
+        fecha: `${HOY} 08:05`,
+        nivel: 'Crítica',
+        leida: false,
+        referenciaId: 'tar-401'
+      }
+    ];
+
+    const INITIAL_TRAZABILIDAD = [
+      { id: 'tr-1', fecha: HOY, hora: '09:30', usuario: 'Cnel. Alejandro Ramos', rol: 'JEFE', accion: 'Consulta de Dashboard Mando', detalles: 'Visualización ejecutiva de la situación de expedientes.', entidad: 'Dashboard' }
+    ];
+
+    const STORAGE_KEY = 'SINTSEG_APP_DATA_V1.1_STANDALONE';
+
+    function SintsegApp() {
+      const [dataLoaded, setDataLoaded] = useState(false);
+      const [rolActual, setRolActual] = useState('JEFE');
+      const [usuarioActual, setUsuarioActual] = useState('usr-1');
+      const [vistaActiva, setVistaActiva] = useState('dashboard');
+
+      const [equipos, setEquipos] = useState(INITIAL_EQUIPOS);
+      const [usuarios, setUsuarios] = useState(INITIAL_USUARIOS);
+      const [asuntos, setAsuntos] = useState(INITIAL_ASUNTOS);
+      const [tareas, setTareas] = useState(INITIAL_TAREAS);
+      const [documentos, setDocumentos] = useState(INITIAL_DOCUMENTOS);
+      const [eventos, setEventos] = useState(INITIAL_EVENTOS);
+      const [alertas, setAlertas] = useState(INITIAL_ALERTAS);
+      const [trazabilidad, setTrazabilidad] = useState(INITIAL_TRAZABILIDAD);
+
+      const [toast, setToast] = useState(null);
+      const showToast = (mensaje, tipo = 'success') => {
+        setToast({ mensaje, tipo });
+        setTimeout(() => setToast(null), 3500);
+      };
+
+      useEffect(() => {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed.asuntos) setAsuntos(parsed.asuntos);
+            if (parsed.tareas) setTareas(parsed.tareas);
+            if (parsed.usuarios) setUsuarios(parsed.usuarios);
+            if (parsed.equipos) setEquipos(parsed.equipos);
+            if (parsed.documentos) setDocumentos(parsed.documentos);
+            if (parsed.eventos) setEventos(parsed.eventos);
+            if (parsed.alertas) setAlertas(parsed.alertas);
+            if (parsed.trazabilidad) setTrazabilidad(parsed.trazabilidad);
+          }
+        } catch (err) { console.error('Error al cargar localStorage:', err); }
+        setDataLoaded(true);
+      }, []);
+
+      useEffect(() => {
+        if (!dataLoaded) return;
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ asuntos, tareas, usuarios, equipos, documentos, eventos, alertas, trazabilidad }));
+        } catch (err) { console.error('Error guardando localStorage:', err); }
+      }, [asuntos, tareas, usuarios, equipos, documentos, eventos, alertas, trazabilidad, dataLoaded]);
+
+      useEffect(() => {
+        if (window.lucide) window.lucide.createIcons();
+      });
+
+      const registrarTrazabilidad = (accion, entidad, detalles) => {
+        const usr = usuarios.find(u => u.id === usuarioActual) || usuarios[0];
+        const hora = new Date().toTimeString().split(' ')[0].substring(0, 5);
+        const nuevaTr = { id: `tr-${Date.now()}`, fecha: HOY, hora, usuario: usr.nombre, rol: rolActual, accion, detalles, entidad };
+        setTrazabilidad(prev => [nuevaTr, ...prev]);
+      };
+
+      const calcularCargaUsuario = (userId) => {
+        const asignadas = tareas.filter(t => t.responsablePrincipalId === userId && t.estado !== 'Finalizada' && t.estado !== 'Cancelada');
+        const participando = tareas.filter(t => t.participantesIds.includes(userId) && t.estado !== 'Finalizada' && t.estado !== 'Cancelada');
+        let puntos = 0, criticas = 0, retrasadas = 0;
+        asignadas.forEach(t => {
+          if (t.prioridad === 'Crítica') { puntos += 4; criticas++; }
+          else if (t.prioridad === 'Alta') puntos += 3;
+          else if (t.prioridad === 'Media') puntos += 2;
+          else if (t.prioridad === 'Baja') puntos += 1;
+          if (t.fechaLimite < HOY) { puntos += 2; retrasadas++; }
+        });
+        participando.forEach(() => { puntos += 1; });
+        return { puntos, pct: Math.min(100, Math.round((puntos / 15) * 100)), totalAsignadas: asignadas.length, totalParticipando: participando.length, criticas, retrasadas };
+      };
+
+      const kpis = useMemo(() => {
+        const abiertas = tareas.filter(t => t.estado !== 'Finalizada' && t.estado !== 'Cancelada');
+        const retrasadas = abiertas.filter(t => t.fechaLimite < HOY);
+        return {
+          totalAbiertas: abiertas.length,
+          criticas: abiertas.filter(t => t.prioridad === 'Crítica').length,
+          bloqueadas: abiertas.filter(t => t.estado === 'Bloqueada').length,
+          retrasadas: retrasadas.length,
+          sinResponsable: abiertas.filter(t => !t.responsablePrincipalId).length,
+          asuntosActivos: asuntos.filter(a => a.estado !== 'Finalizado').length
+        };
+      }, [tareas, asuntos, HOY]);
+
+      const alertasNoLeidas = useMemo(() => alertas.filter(a => !a.leida).length, [alertas]);
+
+      const cambiarRol = (nuevoRol) => {
+        setRolActual(nuevoRol);
+        let idUsr = 'usr-1';
+        if (nuevoRol === 'RESPONSABLE_EQUIPO') idUsr = 'usr-2';
+        if (nuevoRol === 'USUARIO') idUsr = 'usr-6';
+        setUsuarioActual(idUsr);
+        showToast(`Rol cambiado a ${nuevoRol}`, 'info');
+      };
+
+      // Modales State
+      const [modalReasignarTarea, setModalReasignarTarea] = useState(null);
+      const [modalNuevaTareaOpen, setModalNuevaTareaOpen] = useState(false);
+      const [modalEditarTarea, setModalEditarTarea] = useState(null);
+      const [modalDetalleTarea, setModalDetalleTarea] = useState(null);
+      const [modalNuevoAsuntoOpen, setModalNuevoAsuntoOpen] = useState(false);
+      const [modalBriefingOpen, setModalBriefingOpen] = useState(false);
+      const [tipoBriefing, setTipoBriefing] = useState('Diario');
+      const [modalRedistribucionOpen, setModalRedistribucionOpen] = useState(false);
+      const [propuestaRedistribucion, setPropuestaRedistribucion] = useState(null);
+      const [docParaAnalizar, setDocParaAnalizar] = useState(null);
+      const [propuestaTareaDoc, setPropuestaTareaDoc] = useState(null);
+      const [pestanaAgenda, setPestanaAgenda] = useState('HOY');
+      const [pestanaMisTareas, setPestanaMisTareas] = useState('RESPONSABLE');
+      const [asistenteMensajes, setAsistenteMensajes] = useState([{ remitente: 'ia', texto: '¡Saludos! Soy el Asistente de Dirección SINTSEG. ¿En qué puedo asistir al Mando?' }]);
+      const [asistenteInput, setAsistenteInput] = useState('');
+      const [busquedaGlobal, setBusquedaGlobal] = useState('');
+
+      const menuModulos = [
+        { id: 'dashboard', nombre: 'Dashboard Mando', icono: 'layout-dashboard' },
+        { id: 'asuntos', nombre: 'Asuntos / Expedientes', icono: 'folder-git2', badge: asuntos.length },
+        { id: 'bandeja', nombre: 'Bandeja de Entrada', icono: 'inbox', badge: 'IA' },
+        { id: 'tareas', nombre: 'Gestión de Tareas', icono: 'check-square', badge: kpis.totalAbiertas },
+        { id: 'calendario', nombre: 'Calendario y Agenda', icono: 'calendar' },
+        { id: 'equipo', nombre: 'Equipo y Carga', icono: 'users' },
+        { id: 'documentos', nombre: 'Documentos', icono: 'file-text', badge: documentos.length },
+        { id: 'alertas', nombre: 'Alertas de Mando', icono: 'bell', badge: alertasNoLeidas, badgeColor: 'bg-red-600' },
+        { id: 'informes', nombre: 'Informes Ejecutivos', icono: 'bar-chart-3' },
+        { id: 'asistente', nombre: 'Asistente IA Mando', icono: 'bot' },
+        { id: 'configuracion', nombre: 'Configuración', icono: 'settings' }
+      ];
+
+      return (
+        <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100 font-sans">
+          
+          {toast && (
+            <div className="fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-2xl border text-xs font-bold bg-emerald-950 border-emerald-700 text-emerald-300">
+              {toast.mensaje}
+            </div>
+          )}
+
+          {/* SIDEBAR */}
+          <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col justify-between shrink-0">
+            <div>
+              <div className="p-4 border-b border-slate-800 flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-700 to-amber-600 flex items-center justify-center font-bold text-slate-950 shadow">
+                  <i data-lucide="shield" className="w-6 h-6 text-slate-950"></i>
+                </div>
+                <div>
+                  <h1 className="font-extrabold text-sm tracking-wider text-slate-100 uppercase">SINTSEG</h1>
+                  <p className="text-xs text-amber-500 font-medium">Mando & Coordinación</p>
+                </div>
+              </div>
+
+              <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100vh-160px)]">
+                {menuModulos.map(mod => (
+                  <button
+                    key={mod.id}
+                    onClick={() => setVistaActiva(mod.id)}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-semibold transition ${
+                      vistaActiva === mod.id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <i data-lucide={mod.icono} className="w-4 h-4"></i>
+                      <span>{mod.nombre}</span>
+                    </div>
+                    {mod.badge !== undefined && (
+                      <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold ${mod.badgeColor || 'bg-slate-800 text-slate-300'}`}>
+                        {mod.badge}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </nav>
+            </div>
+
+            <div className="p-3 border-t border-slate-800 bg-slate-950/60 text-[11px] text-slate-400 flex items-center justify-between">
+              <span className="flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>MODO DEMOSTRACIÓN IA</span>
+              </span>
+              <span className="text-[10px] font-mono text-slate-500">v1.1</span>
+            </div>
+          </aside>
+
+          {/* ÁREA DE CONTENIDO */}
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            
+            <header className="h-16 bg-slate-900/90 border-b border-slate-800 px-6 flex items-center justify-between shrink-0">
+              <div className="flex items-center space-x-4">
+                <h2 className="text-base font-bold text-slate-100">{menuModulos.find(m => m.id === vistaActiva)?.nombre}</h2>
+                <span className="text-xs px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono font-bold">
+                  PROTOTIPO · DATOS FICTICIOS
+                </span>
+              </div>
+
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-1 bg-slate-950 border border-slate-800 rounded-lg p-1 text-xs">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 px-2">Rol Vista:</span>
+                  <button onClick={() => cambiarRol('JEFE')} className={`px-2 py-1 rounded font-semibold ${rolActual === 'JEFE' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400'}`}>JEFE</button>
+                  <button onClick={() => cambiarRol('RESPONSABLE_EQUIPO')} className={`px-2 py-1 rounded font-semibold ${rolActual === 'RESPONSABLE_EQUIPO' ? 'bg-blue-600 text-white font-bold' : 'text-slate-400'}`}>RESPONSABLE</button>
+                  <button onClick={() => cambiarRol('USUARIO')} className={`px-2 py-1 rounded font-semibold ${rolActual === 'USUARIO' ? 'bg-emerald-600 text-white font-bold' : 'text-slate-400'}`}>USUARIO</button>
+                </div>
+
+                <div className="flex items-center space-x-3 border-l border-slate-800 pl-4">
+                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-xs text-white">
+                    {usuarios.find(u => u.id === usuarioActual)?.avatar || 'US'}
+                  </div>
+                  <div className="hidden md:block text-left text-xs">
+                    <div className="font-bold text-slate-200">{usuarios.find(u => u.id === usuarioActual)?.nombre}</div>
+                    <div className="text-[10px] text-slate-400">{usuarios.find(u => u.id === usuarioActual)?.puesto}</div>
+                  </div>
+                </div>
+              </div>
+            </header>
+
+            <main className="flex-1 overflow-y-auto p-6 bg-slate-950">
+              
+              {/* VISTA 1: DASHBOARD */}
+              {vistaActiva === 'dashboard' && (
+                <div className="space-y-6">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-5 rounded-xl">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-100">Situación General Operativa en Tiempo Real</h3>
+                      <p className="text-xs text-slate-400">Fecha del Sistema: <strong className="text-amber-400 font-mono">{formatFechaLegible(HOY)}</strong></p>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <button onClick={() => setModalNuevaTareaOpen(true)} className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs shadow">+ NUEVA TAREA</button>
+                      <button onClick={() => setModalBriefingOpen(true)} className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-bold rounded-lg text-xs shadow">GENERAR BRIEFING</button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                      <div className="text-xs text-slate-400 font-semibold uppercase">Total Tareas Abiertas</div>
+                      <div className="text-3xl font-extrabold text-blue-400 mt-1">{kpis.totalAbiertas}</div>
+                    </div>
+                    <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                      <div className="text-xs text-slate-400 font-semibold uppercase">Tareas Críticas</div>
+                      <div className="text-3xl font-extrabold text-amber-500 mt-1">{kpis.criticas}</div>
+                    </div>
+                    <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                      <div className="text-xs text-slate-400 font-semibold uppercase">Tareas Bloqueadas</div>
+                      <div className="text-3xl font-extrabold text-rose-500 mt-1">{kpis.bloqueadas}</div>
+                    </div>
+                    <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                      <div className="text-xs text-slate-400 font-semibold uppercase">Tareas Retrasadas</div>
+                      <div className="text-3xl font-extrabold text-red-400 mt-1">{kpis.retrasadas}</div>
+                    </div>
+                  </div>
+
+                  {/* ATENCIÓN DEL JEFE */}
+                  <div className="bg-gradient-to-r from-red-950/40 to-slate-900 border border-red-900/50 p-5 rounded-xl space-y-3">
+                    <div className="text-red-400 font-extrabold text-sm uppercase flex items-center space-x-2">
+                      <i data-lucide="alert-triangle" className="w-5 h-5"></i>
+                      <span>Atención del Jefe (Detección Automática)</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                      <div className="bg-slate-950 p-3 rounded border border-red-900/30">
+                        <span className="text-[10px] font-bold bg-red-600/20 text-red-400 px-2 py-0.5 rounded uppercase">Retrasada</span>
+                        <h4 className="font-bold text-slate-200 mt-1">TAR-103: Auditar política contraseñas TLS</h4>
+                        <button onClick={() => setModalReasignarTarea(tareas.find(t=>t.id==='tar-103'))} className="mt-2 text-amber-400 font-bold hover:underline">Reasignar →</button>
+                      </div>
+                      <div className="bg-slate-950 p-3 rounded border border-amber-900/30">
+                        <span className="text-[10px] font-bold bg-amber-600/20 text-amber-400 px-2 py-0.5 rounded uppercase">Sin Responsable</span>
+                        <h4 className="font-bold text-slate-200 mt-1">TAR-401: Escaneo IP perimetral</h4>
+                        <button onClick={() => setModalReasignarTarea(tareas.find(t=>t.id==='tar-401'))} className="mt-2 text-amber-400 font-bold hover:underline">Designar Responsable →</button>
+                      </div>
+                      <div className="bg-slate-950 p-3 rounded border border-rose-900/30">
+                        <span className="text-[10px] font-bold bg-rose-600/20 text-rose-400 px-2 py-0.5 rounded uppercase">Bloqueada</span>
+                        <h4 className="font-bold text-slate-200 mt-1">TAR-301: Conmutación CPD</h4>
+                        <button onClick={() => setModalDetalleTarea(tareas.find(t=>t.id==='tar-301'))} className="mt-2 text-rose-400 font-bold hover:underline">Ver Ficha →</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+                    <h3 className="text-sm font-bold text-slate-100 uppercase">Expedientes Activos</h3>
+                    <div className="space-y-2">
+                      {asuntos.slice(0, 4).map(asu => (
+                        <div key={asu.id} className="bg-slate-950 p-3 rounded border border-slate-800 flex justify-between items-center text-xs">
+                          <div>
+                            <span className="font-mono text-amber-500 font-bold">{asu.codigo}</span>
+                            <span className="font-bold text-slate-200 ml-2">{asu.titulo}</span>
+                          </div>
+                          <div className="w-32 bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div className="bg-amber-500 h-2 rounded-full" style={{ width: `${asu.progreso}%` }}></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* VISTA 2: ASUNTOS */}
+              {vistaActiva === 'asuntos' && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-800">
+                    <h3 className="text-sm font-bold text-slate-100 uppercase">Expedientes y Líneas de Actividad</h3>
+                    {rolActual === 'JEFE' && (
+                      <button onClick={() => setModalNuevoAsuntoOpen(true)} className="px-4 py-2 bg-blue-600 font-bold text-xs rounded text-white shadow">+ NUEVO EXPEDIENTE</button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {asuntos.map(asu => (
+                      <div key={asu.id} className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3 text-xs">
+                        <div className="flex justify-between">
+                          <span className="font-mono text-amber-500 font-bold">{asu.codigo}</span>
+                          <span className="bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded font-bold">{asu.estado}</span>
+                        </div>
+                        <h4 className="font-bold text-slate-100 text-sm">{asu.titulo}</h4>
+                        <p className="text-slate-400">{asu.descripcion}</p>
+                        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                          <div className="bg-amber-500 h-2 rounded-full" style={{ width: `${asu.progreso}%` }}></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* VISTA 4: TAREAS */}
+              {vistaActiva === 'tareas' && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-800">
+                    <h3 className="text-sm font-bold text-slate-100 uppercase">{rolActual === 'USUARIO' ? 'Mis Tareas Asignadas' : 'Gestión y Control de Tareas'}</h3>
+                    {rolActual === 'JEFE' && (
+                      <button onClick={() => setModalNuevaTareaOpen(true)} className="px-4 py-2 bg-blue-600 font-bold text-xs rounded text-white shadow">+ NUEVA TAREA</button>
+                    )}
+                  </div>
+
+                  {rolActual === 'USUARIO' && (
+                    <div className="flex space-x-2 border-b border-slate-800 pb-2 text-xs">
+                      <button onClick={() => setPestanaMisTareas('RESPONSABLE')} className={`px-3 py-1 rounded font-bold ${pestanaMisTareas === 'RESPONSABLE' ? 'bg-amber-500 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>Soy Responsable</button>
+                      <button onClick={() => setPestanaMisTareas('PARTICIPO')} className={`px-3 py-1 rounded font-bold ${pestanaMisTareas === 'PARTICIPO' ? 'bg-amber-500 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>Participo</button>
+                    </div>
+                  )}
+
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-950 text-slate-400 font-mono text-[10px] uppercase border-b border-slate-800">
+                        <tr>
+                          <th className="p-3">Código / Título</th>
+                          <th className="p-3">Estado</th>
+                          <th className="p-3">Prioridad</th>
+                          <th className="p-3">Responsable Principal</th>
+                          <th className="p-3">Vencimiento</th>
+                          <th className="p-3">Progreso</th>
+                          <th className="p-3 text-right">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800">
+                        {tareas.map(tar => {
+                          const resp = usuarios.find(u => u.id === tar.responsablePrincipalId);
+                          const esRetrasada = tar.fechaLimite < HOY && tar.estado !== 'Finalizada';
+                          return (
+                            <tr key={tar.id} className="hover:bg-slate-800/50 transition">
+                              <td className="p-3">
+                                <span className="font-mono text-amber-500 font-bold block">{tar.codigo}</span>
+                                <span className="font-bold text-slate-200">{tar.titulo}</span>
+                              </td>
+                              <td className="p-3"><span className="bg-slate-800 px-2 py-0.5 rounded font-bold">{tar.estado}</span></td>
+                              <td className="p-3"><span className="text-amber-400 font-bold">{tar.prioridad}</span></td>
+                              <td className="p-3 font-bold">{resp ? resp.nombre : <span className="text-red-400">⚠️ Sin designar</span>}</td>
+                              <td className="p-3 font-mono"><span className={esRetrasada ? 'text-red-400 font-bold' : ''}>{formatFechaLegible(tar.fechaLimite)}</span></td>
+                              <td className="p-3">{tar.progreso}%</td>
+                              <td className="p-3 text-right space-x-1">
+                                <button onClick={() => setModalDetalleTarea(tar)} className="px-2 py-1 bg-slate-800 text-slate-200 text-[10px] font-bold rounded">Ficha</button>
+                                {rolActual === 'JEFE' && (
+                                  <button onClick={() => setModalReasignarTarea(tar)} className="px-2 py-1 bg-slate-800 text-amber-400 text-[10px] font-bold rounded">Reasignar</button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* VISTA 6: EQUIPO Y CARGA PONDERADA */}
+              {vistaActiva === 'equipo' && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center bg-slate-900 p-5 rounded-xl border border-slate-800">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-100 uppercase">Supervisión de Carga de Trabajo Ponderada</h3>
+                      <p className="text-xs text-slate-400">Ponderación: Crítica=4pt, Alta=3pt, Media=2pt, Baja=1pt. Retrasadas=+2pt penalty.</p>
+                    </div>
+                    {rolActual === 'JEFE' && (
+                      <button
+                        onClick={() => {
+                          setPropuestaRedistribucion({
+                            origenNombre: 'Fernando Gómez',
+                            destinoUserId: 'usr-3',
+                            destinoNombre: 'Lic. Carlos Izquierdo',
+                            tareaId: 'tar-101',
+                            tareaNombre: 'TAR-101: Recopilar inventario acreditado',
+                            motivo: 'Superación de umbral de densidad ponderada.'
+                          });
+                          setModalRedistribucionOpen(true);
+                        }}
+                        className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-bold rounded text-xs shadow"
+                      >
+                        ⚡ PROPONER REDISTRIBUCIÓN CON IA
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {usuarios.map(usr => {
+                      const carga = calcularCargaUsuario(usr.id);
+                      return (
+                        <div key={usr.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-xs">{usr.avatar}</div>
+                            <div>
+                              <h4 className="text-xs font-bold text-slate-100">{usr.nombre}</h4>
+                              <p className="text-[10px] text-slate-400">{usr.puesto}</p>
+                            </div>
+                          </div>
+                          <div className="bg-slate-950 p-2.5 rounded border border-slate-800 text-[11px] space-y-1">
+                            <div className="flex justify-between"><span>Como Responsable:</span><span className="font-bold text-slate-200">{carga.totalAsignadas} tareas</span></div>
+                            <div className="flex justify-between text-amber-400 font-bold"><span>Puntos Ponderados:</span><span>{carga.puntos} pts</span></div>
+                          </div>
+                          <div title="Ponderación: Crítica=4pt, Alta=3pt, Media=2pt, Baja=1pt, Retraso=+2pt">
+                            <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                              <span>Densidad de Carga</span><span className="font-bold text-amber-400">{carga.pct}%</span>
+                            </div>
+                            <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                              <div className="bg-amber-500 h-2 rounded-full" style={{ width: `${carga.pct}%` }}></div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* VISTA 11: CONFIGURACIÓN & RESTAURAR */}
+              {vistaActiva === 'configuracion' && (
+                <div className="space-y-6">
+                  <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-4">
+                    <h3 className="text-sm font-bold text-slate-100 uppercase">Configuración de Infraestructura</h3>
+                    
+                    <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 space-y-2 text-xs">
+                      <h4 className="font-bold text-amber-400 uppercase">Restaurar Estado Inicial Semilla</h4>
+                      <p className="text-slate-400">Restablece la aplicación borrando las modificaciones de localStorage:</p>
+                      <button
+                        onClick={() => {
+                          localStorage.removeItem(STORAGE_KEY);
+                          setAsuntos(INITIAL_ASUNTOS);
+                          setTareas(INITIAL_TAREAS);
+                          setUsuarios(INITIAL_USUARIOS);
+                          setEquipos(INITIAL_EQUIPOS);
+                          setDocumentos(INITIAL_DOCUMENTOS);
+                          setEventos(INITIAL_EVENTOS);
+                          setAlertas(INITIAL_ALERTAS);
+                          setTrazabilidad(INITIAL_TRAZABILIDAD);
+                          registrarTrazabilidad('Restauración de Datos', 'Sistema', 'Restablecidos datos semilla.');
+                          showToast('✓ Datos de demostración restablecidos.', 'success');
+                        }}
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded shadow"
+                      >
+                        🔄 RESTAURAR DATOS DE DEMOSTRACIÓN
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </main>
+          </div>
+
+          {/* MODAL REASIGNAR TAREA REAL */}
+          {modalReasignarTarea && (
+            <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
+              <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-lg w-full space-y-4">
+                <h3 className="text-sm font-bold text-amber-400 uppercase">Reasignar Responsable Principal</h3>
+                <p className="text-xs text-slate-300">Tarea: <strong>{modalReasignarTarea.codigo} - {modalReasignarTarea.titulo}</strong></p>
+                <div className="max-h-56 overflow-y-auto space-y-1 bg-slate-950 p-2 rounded border border-slate-800 text-xs">
+                  {usuarios.map(u => (
+                    <div key={u.id} onClick={() => setModalReasignarTarea({...modalReasignarTarea, nuevoId: u.id})} className={`p-2 rounded cursor-pointer ${modalReasignarTarea.nuevoId === u.id ? 'bg-blue-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-300'}`}>
+                      {u.nombre} ({u.puesto})
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <button onClick={() => setModalReasignarTarea(null)} className="px-3 py-1.5 bg-slate-800 text-xs text-slate-300 rounded">Cancelar</button>
+                  <button
+                    onClick={() => {
+                      const nId = modalReasignarTarea.nuevoId || modalReasignarTarea.responsablePrincipalId;
+                      const nUsr = usuarios.find(u=>u.id===nId);
+                      setTareas(prev => prev.map(t => t.id === modalReasignarTarea.id ? { ...t, responsablePrincipalId: nId } : t));
+                      registrarTrazabilidad('Reasignación de Tarea', `Tarea ${modalReasignarTarea.codigo}`, `Reasignada a ${nUsr?.nombre}`);
+                      setModalReasignarTarea(null);
+                      showToast(`✓ Tarea reasignada a ${nUsr?.nombre}`, 'success');
+                    }}
+                    className="px-4 py-1.5 bg-amber-500 font-bold text-slate-950 text-xs rounded"
+                  >
+                    Confirmar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<SintsegApp />);
+  </script>
+</body>
+</html>
