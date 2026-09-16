@@ -1,62 +1,82 @@
 # 🛡️ SINTSEG — Dirección, Coordinación y Seguimiento (Mando y Control)
 
-Plataforma web profesional para la gestión de expedientes, tareas, documentos y coordinación de equipos de seguridad e inteligencia SINTSEG. Diseñada para operar en entornos de mando con control humano garantizado (**IA Analiza → IA Propone → Jefe Decide → Sistema Ejecuta**).
+Prototipo web para gestión de expedientes, tareas, documentos y coordinación de equipos, con un asistente IA opcional conectado a NVIDIA mediante un backend local. El principio de diseño es **IA analiza → IA propone → jefe decide → sistema ejecuta**.
 
-> ⚠️ **IMPORTANTE**: Prototipo desarrollado para fines docentes y de demostración. Utiliza exclusivamente datos ficticios no sensibles.
+> ⚠️ **Uso docente y de demostración.** Los datos incluidos son ficticios. No introduzcas información clasificada, sensible, personal u operativa real en un servicio externo sin autorización expresa de tu organización.
 
----
+## Funciones principales
 
-## 🚀 Características Principales
+- Dashboard ejecutivo con KPIs y alertas.
+- Gestión de asuntos, expedientes y tareas.
+- Carga de trabajo ponderada: Crítica=4, Alta=3, Media=2, Baja=1 y retraso=+2.
+- Vista de usuario y trazabilidad.
+- Persistencia de demostración en `localStorage`.
+- Asistente IA consultivo: no modifica tareas, usuarios ni equipos.
+- Selector de contexto: el backend envía al proveedor IA solo el subconjunto necesario para responder.
 
-1. **Dashboard Mando General (< 30s Status)**:
-   - Resumen ejecutivo en tiempo real con KPIs de tareas abiertas, críticas, bloqueadas y retrasadas.
-   - Bloque de **Atención del Jefe** con detección automática de alertas graves.
-   - Generación instantánea de **Briefings Ejecutivos** (Diario, Semanal, Mensual).
-
-2. **Gestión de Asuntos y Expedientes Máster**:
-   - Entidades superiores que agrupan tareas, documentos, hitos y responsables principales.
-
-3. **Control Avanzado de Tareas**:
-   - Clasificación por Prioridad (*Crítica, Alta, Media, Baja*), Estado y Modalidades de Ejecución (*Individual, Equipo, Coordinada entre personas, Coordinada entre equipos, Mixta*).
-   - Distinción entre **Responsable Principal** y **Participantes**.
-
-4. **Redistribución de Carga de Trabajo Asistida por IA**:
-   - Cálculo de densidad de carga ponderada (Crítica=4pt, Alta=3pt, Media=2pt, Baja=1pt + penalización por retrasos).
-   - Propuesta de reequilibrio de tareas por IA ejecutable tras confirmación del Mando.
-
-5. **Bandeja de Entrada Documental & Análisis IA**:
-   - Extracción de acciones requeridas y fechas límite con propuesta automática de tareas.
-
-6. **Trazabilidad e Historial Inmutable**:
-   - Registro de auditoría con fecha, hora, usuario y acción realizada.
-   - Persistencia temporal en `localStorage` con opción de *Restaurar Datos de Demostración*.
-
-7. **Soberanía y Funcionamiento Local**:
-   - Diseñado sin dependencia obligatoria de servicios cloud de pago.
-   - Desacoplado para futura integración con modelos locales **Ollama (Llama 3)** e infraestructura aislada.
-
----
-
-## 📂 Estructura del Proyecto
+## Estructura
 
 ```text
 sintseg-app/
-├── index.html        # Aplicación SPA autosuficiente (React 18 + Babel + Tailwind)
-├── seedData.js       # Datos semilla iniciales (12 usuarios, 4 equipos, 8 expedientes, 30 tareas)
-├── app.jsx           # Componente React principal
-└── README.md         # Documentación del proyecto
+├── index.html
+├── app.jsx
+├── seedData.js
+├── server.js              # Backend Node.js recomendado
+├── aiService.js           # Adaptador NVIDIA/OpenAI-compatible
+├── contextSelector.js     # Minimización del contexto enviado
+├── server.py              # Backend Python alternativo
+├── package.json
+├── .env.example
+├── .gitignore
+└── README.md
 ```
 
----
+## Configurar la API de NVIDIA
 
-## 🖥️ Cómo Ejecutar Localmente
+1. Copia `.env.example` como `.env`.
+2. Sustituye el marcador por tu clave real. **No publiques `.env` ni pegues la clave en el frontend.**
 
-1. Descarga o clona este repositorio.
-2. Haz **doble clic** en el archivo `index.html` para abrir la aplicación directamente en tu navegador (Chrome, Edge, Firefox, Safari).
-3. No requiere instalación de `npm` ni servidor Node.js.
+```env
+NVIDIA_API_KEY=nvapi-...
+NVIDIA_MODEL=mistralai/mistral-nemotron
+NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+PORT=3001
+```
 
----
+El modelo es configurable. Conviene comprobar en NVIDIA Build que el modelo elegido siga disponible para tu tipo de endpoint.
 
-## ⚖️ Licencia
+## Arranque recomendado: Node.js
 
-Software libre y de código abierto para fines educativos y de prototipado.
+```bash
+npm install
+npm start
+```
+
+El backend quedará en `http://localhost:3001`. Después abre `index.html` en el navegador.
+
+### Comprobar el backend
+
+Abre `http://localhost:3001/api/health`. Este endpoint confirma que el backend está activo y que una clave parece estar configurada, **pero no valida la clave contra NVIDIA**. La validación real ocurre al enviar la primera consulta desde el Asistente IA.
+
+## Alternativa Python
+
+Si no quieres instalar dependencias Node, puedes ejecutar:
+
+```bash
+python server.py
+```
+
+La implementación Node.js es la referencia principal del prototipo; la versión Python se mantiene como alternativa local.
+
+## Seguridad
+
+- `.env` está excluido por `.gitignore`.
+- La API key solo se usa en el backend.
+- La interfaz nunca recibe la API key.
+- El backend Node restringe CORS a uso local del prototipo.
+- El asistente es de solo lectura: analiza y recomienda, no ejecuta cambios.
+- Antes de un uso real en un entorno corporativo o de defensa, deben revisarse autorización, clasificación de la información, protección de datos, registro, autenticación, control de acceso y despliegue del backend.
+
+## Licencia
+
+Software de prototipado/uso educativo.
